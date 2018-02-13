@@ -18,44 +18,44 @@ void fork_error() {
 }
 
 
-void fork_cmd(char* argv[], int i, int fd[]) {
+void fork_cmd(char* argv[], int i, int fd[], int n) {
   pid_t pid;
 
   switch (pid = fork()) {
     case -1:
-
       fork_error();
     case 0:
-      if (i == 1) {       //if it is the last command we let it read
-          close(fd[WRITE]);   
-          dup2(fd[READ], 0);
-          //printf("The reader \n");
-      } else {
-          close(fd[READ]);   //All other commands will be allowed to write only
+      if (i == 0) {
+          close(fd[READ]);   //read
           dup2(fd[WRITE], 1);
+      } else if (i == n-1){
+          close(fd[i*2+WRITE]);
+          dup2(fd[(i-1)*2+READ], 0);
+      } else {
+          close(fd[(i-1)*2+WRITE]);   //write
+          dup2(fd[(i-1)*2+READ], 0);
+          dup2(fd[(i*2)+WRITE],1);
       }
       execvp(argv[0], argv);
       perror("execvp");
       exit(EXIT_FAILURE);
     default:
+      close(fd[i*2+WRITE]);   //write
       //printf("I'm the parent and my PID is %ld \n", (long) getpid());
       break;
   }
 }
 
 void fork_cmds(char* argvs[MAX_COMMANDS][MAX_ARGV], int n) {
-  int fd[2];
-  pipe(fd);
-  for (int i = 0; i < n; i++) {
-    if (i+1 == n) {
-      fork_cmd(argvs[i], 1, fd);      //If we are at the last command!
-    } else {
-      fork_cmd(argvs[i], 0, fd);
-    }
+  int fd[2*n];
+  for (int i = 0; i <n; i++){
+   // int fd2[2];
+   // fd[i] = fd2;
+    pipe(&fd[2*i]);
   }
-  close(fd[WRITE]);
-  for (int j = 0; j < n; j++) {
-    //wait(NULL);
+
+  for (int i = 0; i < n; i++){
+    fork_cmd(argvs[i], i, fd, n);      //If we are at the last command!
   }
 }
 
